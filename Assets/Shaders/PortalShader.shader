@@ -16,7 +16,9 @@ Shader "Portal/PortalShader"
         HLSLINCLUDE
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
         ENDHLSL
-
+        
+        Cull Off
+        
         Pass
         {
             Name "Mask"

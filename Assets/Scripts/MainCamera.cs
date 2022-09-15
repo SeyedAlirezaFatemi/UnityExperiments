@@ -38,8 +38,6 @@ public class MainCamera : MonoBehaviour {
     }
 
     private void UpdateCamera(ScriptableRenderContext SRC, Camera camera) {
-        // TODO: Check if placed
-
         if (_portals[0].Renderer.isVisible) {
             _portalCamera.targetTexture = _tmpTexture1;
             for (int i = _iterations - 1; i >= 0; i--) {
@@ -53,13 +51,17 @@ public class MainCamera : MonoBehaviour {
                 RenderCamera(_portals[1], _portals[0], i, SRC);
             }
         }
+
+        foreach (var portal in _portals) {
+            portal.ProtectScreenFromClipping(_mainCamera.transform.position);
+        }
     }
 
     private void RenderCamera(Portal inPortal, Portal outPortal, int iterationID, ScriptableRenderContext SRC) {
         var inTransform = inPortal.transform;
         var outTransform = outPortal.transform;
         // Place the virtual camera at the main camera's position and orientation
-        var cameraTransform = _portalCamera.transform;  
+        var cameraTransform = _portalCamera.transform;
         cameraTransform.position = transform.position;
         cameraTransform.rotation = transform.rotation;
         for (var i = 0; i <= iterationID; i++) {
@@ -67,25 +69,38 @@ public class MainCamera : MonoBehaviour {
             //  1. Go from world-space to inPortal local-space
             var relativePos = inTransform.InverseTransformPoint(cameraTransform.position);
             //  2. Rotate by 180 degrees to go behind the portal
-            relativePos = Quaternion.Euler(0f, 180f, 0f) * relativePos;
+            // relativePos = Quaternion.Euler(0f, 180f, 0f) * relativePos;
             //  3. Go back to world-space but as if the point was in the local-space of the other portal
             cameraTransform.position = outTransform.TransformPoint(relativePos);
             //  4. Same steps for rotation
             var relativeRot = Quaternion.Inverse(inTransform.rotation) * cameraTransform.rotation;
-            relativeRot = Quaternion.Euler(0f, 180f, 0f) * relativeRot;
+            // relativeRot = Quaternion.Euler(0f, 180f, 0f) * relativeRot;
             cameraTransform.rotation = outTransform.rotation * relativeRot;
         }
 
         // Create the camera's oblique view frustum.
         // We create this new clip plane so we don't render the walls and objects behind walls.
         // https://docs.unity3d.com/Manual/ObliqueFrustum.html
-        // It's -outTransform.forward because we are behind the other portal.
+        // It's -outTransform.forward when we get behind the other portal.
         var p = new Plane(-outTransform.forward, outTransform.position);
+        // It's outTransform.forward when we get in front of the other portal.
+        if (Vector3.Dot(_portalCamera.transform.forward, outTransform.forward) > 0) {
+            p = new Plane(outTransform.forward, outTransform.position);
+        }
+
         var clipPlaneWorldSpace = new Vector4(p.normal.x, p.normal.y, p.normal.z, p.distance);
         var clipPlaneCameraSpace = Matrix4x4.Transpose(Matrix4x4.Inverse(_portalCamera.worldToCameraMatrix)) *
                                    clipPlaneWorldSpace;
-        _portalCamera.projectionMatrix = _mainCamera.CalculateObliqueMatrix(clipPlaneCameraSpace);
 
+        // Calculated with _mainCamera so that player camera settings (fov, etc) are used
+        _portalCamera.projectionMatrix = _mainCamera.CalculateObliqueMatrix(clipPlaneCameraSpace);
+        // In case we are not directly looking at the portal, use the normal projection matrix
+        // Might be possible to improve this by removing the abs. Need to think more!
+        if (Math.Abs(Vector3.Dot(outTransform.forward, _portalCamera.transform.forward)) < 0.6) {
+            _portalCamera.projectionMatrix = _mainCamera.projectionMatrix;
+        }
+
+        outPortal.ProtectScreenFromClipping(_portalCamera.transform.position);
         // Render the camera
         UniversalRenderPipeline.RenderSingleCamera(SRC, _portalCamera);
     }
