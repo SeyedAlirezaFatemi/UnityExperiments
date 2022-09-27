@@ -34,7 +34,9 @@ public class Portal : MonoBehaviour {
             //     first = false;
             //     Debug.Break();
             // }
+            traveller.previousOffsetFromPortal = offsetFromPortal;
             if (currentPortalSide != prevPortalSide) {
+                // Debug.Log("Crossed");
                 // Traveller crossed the portal
                 var m = _otherPortal.transform.localToWorldMatrix * transform.worldToLocalMatrix *
                         travellerTransform.localToWorldMatrix;
@@ -45,7 +47,6 @@ public class Portal : MonoBehaviour {
                 i--;
             }
 
-            traveller.previousOffsetFromPortal = offsetFromPortal;
         }
     }
 
